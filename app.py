@@ -1,117 +1,67 @@
 import streamlit as st
 import requests
-from groq import Groq
-from dotenv import load_dotenv
 import os
 
-# Load environment variables
-load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-JIOSAAVN_API_URL = "https://saavn.dev/api"  # Free unofficial API
+# Function to fetch songs from JioSaavn API (Unofficial)
+def fetch_songs(query):
+    base_url = "https://saavn.dev/api"
+    response = requests.get(f"{base_url}/search/songs", params={"query": query})
+    data = response.json()
+    return data['data']['results']  # List of song details
 
-# Initialize Groq client
-groq_client = Groq(api_key=GROQ_API_KEY)
-
-st.set_page_config(page_title="Mood-Based Music App", layout="centered")
-st.title("🎧 Mood-Based Music Recommender")
-
-# Session state
-if "current_index" not in st.session_state:
-    st.session_state.current_index = 0
-if "song_list" not in st.session_state:
-    st.session_state.song_list = []
-
-# Mood input
-mood_input = st.text_input("How are you feeling today?", placeholder="e.g. Happy, Sad, Energetic")
-
-def get_mood_category(text):
-    try:
-        response = groq_client.chat.completions.create(
-            model="llama3-8b-8192",  # Updated model
-            messages=[
-                {"role": "system", "content": "Classify the user's mood into one of: Happy, Sad, Energetic, Romantic, Calm, Angry"},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.3,
-            max_tokens=20
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        st.error("Failed to connect to Groq API.")
-        return None
-
-def fetch_songs_by_mood(mood):
-    try:
-        query = f"{mood} hits"
-        res = requests.get(f"{JIOSAAVN_API_URL}/search/songs", params={"query": query})
-        data = res.json().get("data", {}).get("results", [])
-        return data[:15]  # Fetch 15 songs to provide more recommendations
-    except Exception as e:
-        st.error("Error fetching songs. Try again later.")
-        return []
-
+# Function to show song details and audio player
 def show_song(song):
-    # Display song name
-    song_name = song.get("name", "Unknown Title")
-    album_name = song.get("album", {}).get("name", "Unknown Album")
+    song_name = song.get("song", "Unknown Title")
+    album_name = song.get("album", "Unknown Album")
+    song_url = song.get("media_url", "")
+    
     st.subheader(song_name)
     st.text(f"Album: {album_name}")
-
-    # Safe image display
-    image_list = song.get("image", [])
-    if isinstance(image_list, list) and len(image_list) > 0 and "link" in image_list[-1]:
-        st.image(image_list[-1]["link"], width=300)
-    else:
-        st.warning(f"No image available for {song_name}.")
-
-    # Safe audio playback
-    audio_url = song.get("downloadUrl", None)
-    if isinstance(audio_url, list) and len(audio_url) > 0 and "link" in audio_url[0]:
-        audio_link = audio_url[0]["link"]
-        st.audio(audio_link, format="audio/mp3")
+    
+    # Display audio player if song URL is available
+    if song_url:
+        st.audio(song_url, format="audio/mp3")
     else:
         st.error(f"Audio unavailable for {song_name}. Please try another song.")
 
-    # Attempt to fetch and display lyrics
-    try:
-        lyrics_res = requests.get(f"{JIOSAAVN_API_URL}/songs/{song['id']}/lyrics")
-        lyrics = lyrics_res.json().get("data", {}).get("lyrics", "")
-        if lyrics:
-            with st.expander("🎤 Lyrics"):
-                st.text(lyrics)
-        else:
-            st.info(f"Lyrics not available for {song_name}.")
-    except Exception as e:
-        st.warning(f"Could not fetch lyrics for {song_name}.")
-        st.info(f"Error: {str(e)}")
+# Function to recommend songs based on mood
+def recommend_songs(mood):
+    # Make a request to Groq API for mood-based recommendations (replace with Groq API)
+    groq_url = "https://api.groq.com/v1/completions"
+    headers = {
+        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}",
+    }
+    data = {
+        "model": "text-davinci-003",  # Example model; replace with the latest model from Groq
+        "prompt": f"Recommend songs for a {mood} mood.",
+        "max_tokens": 100
+    }
+    response = requests.post(groq_url, headers=headers, json=data)
+    recommended_songs = response.json().get("choices", [])
+    song_list = [song['text'] for song in recommended_songs]  # Assuming the response contains song names
+    return song_list
 
-# Mood detection and song loading
-if st.button("🎵 Get Songs"):
-    if mood_input.strip() == "":
-        st.warning("Please enter your mood.")
+# Streamlit UI
+st.title("Mood-based Music Streaming Platform")
+mood = st.selectbox("Select your mood", ["Happy", "Sad", "Energetic", "Relaxed"])
+
+# Recommend songs based on mood
+if mood:
+    st.subheader(f"Recommended songs for a {mood} mood:")
+    song_list = recommend_songs(mood)
+    
+    if song_list:
+        for song_name in song_list[:10]:  # Display up to 10 songs
+            st.write(f"- {song_name}")
     else:
-        mood = get_mood_category(mood_input)
-        if mood:
-            st.success(f"Detected mood: {mood}")
-            songs = fetch_songs_by_mood(mood)
-            if songs:
-                st.session_state.song_list = songs
-                st.session_state.current_index = 0
-            else:
-                st.error("No songs found.")
-
-# Navigation controls
-if st.session_state.song_list:
-    current = st.session_state.current_index
-    show_song(st.session_state.song_list[current])
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("⏮ Previous", disabled=(current == 0)):
-            st.session_state.current_index = max(0, current - 1)
-    with col2:
-        st.markdown("###")
-        st.markdown("▶️ Now Playing")
-    with col3:
-        if st.button("⏭ Next", disabled=(current >= len(st.session_state.song_list) - 1)):
-            st.session_state.current_index = min(len(st.session_state.song_list) - 1, current + 1)
+        st.error("No songs found for the selected mood. Please try again later.")
+    
+    # Play a song from the recommended list
+    selected_song = st.selectbox("Choose a song to play", song_list)
+    
+    if selected_song:
+        song_data = fetch_songs(selected_song)
+        if song_data:
+            show_song(song_data[0])  # Play the first song from the search results
+        else:
+            st.error(f"Could not find the song {selected_song}.")
