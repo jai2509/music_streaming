@@ -33,7 +33,7 @@ if "audio_url" not in st.session_state:
 def play_audio(url):
     if st.session_state.audio_url != url:
         st.session_state.audio_url = url
-        st.audio(url, format="audio/mp3", use_buffer=True)
+        st.audio(url, format="audio/mp3")
 
 if query:
     # Search JioSaavn
