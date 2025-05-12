@@ -65,11 +65,12 @@ def show_song(song):
         st.warning(f"No image available for {song_name}.")
 
     # Safe audio playback
-    audio_list = song.get("downloadUrl", [])
-    if isinstance(audio_list, list) and len(audio_list) > 0 and "link" in audio_list[0]:
-        st.audio(audio_list[0]["link"], format="audio/mp3")
+    audio_url = song.get("downloadUrl", None)
+    if isinstance(audio_url, list) and len(audio_url) > 0 and "link" in audio_url[0]:
+        audio_link = audio_url[0]["link"]
+        st.audio(audio_link, format="audio/mp3")
     else:
-        st.error(f"Audio unavailable for {song_name}.")
+        st.error(f"Audio unavailable for {song_name}. Please try another song.")
 
     # Attempt to fetch and display lyrics
     try:
