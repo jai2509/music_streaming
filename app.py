@@ -20,7 +20,7 @@ st.markdown("Enter your mood to get Bollywood + Hollywood songs!")
 # Input field
 user_input = st.text_input("How are you feeling today?", placeholder="e.g. I'm feeling energetic...")
 
-# Session state defaults
+# Session state
 if "current_song" not in st.session_state:
     st.session_state.current_song = None
 if "song_index" not in st.session_state:
@@ -37,18 +37,18 @@ if st.button("🎧 Get Songs"):
             try:
                 prompt = f"Classify this mood into one of: Happy, Sad, Energetic, Calm.\nMood: {user_input}\nMood:"
                 response = groq_client.chat.completions.create(
-                    model="mixtral-8x7b-32768",
+                    model="llama3-8b-8192",  # ✅ Updated working model
                     messages=[
                         {"role": "system", "content": "You are a mood classification assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.7,
+                    temperature=0.5,
                     max_tokens=10
                 )
                 mood = response.choices[0].message.content.strip()
                 st.success(f"Detected mood: **{mood}**")
 
-                # Search JioSaavn
+                # Fetch songs from JioSaavn
                 with st.spinner(f"Searching for {mood} songs..."):
                     search = requests.get(f"{JIOSAAVN_API_URL}/search/songs", params={"query": mood})
                     data = search.json().get("data", [])
