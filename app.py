@@ -1,75 +1,74 @@
 import streamlit as st
 import requests
+from groq import Groq
 from dotenv import load_dotenv
 import os
-from groq import Groq
 
+# Load environment variables
 load_dotenv()
-
-# ENV Variables
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
-JIOSAAVN_API_URL = os.getenv("JIOSAAVN_API_URL", "https://saavn.dev/api")
+JIOSAAVN_API_URL = "https://saavn.dev/api"  # Free unofficial API
 
-# Groq Client
+# Initialize Groq client
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-st.set_page_config(page_title="Moodify Music", layout="centered")
-st.title("🎧 Moodify - Mood Based Music Recommender")
+st.set_page_config(page_title="Mood-Based Music App", layout="centered")
+st.title("🎧 Mood-Based Music Recommender")
 
-# Session state init
+# Session state
+if "current_index" not in st.session_state:
+    st.session_state.current_index = 0
 if "song_list" not in st.session_state:
     st.session_state.song_list = []
-if "song_index" not in st.session_state:
-    st.session_state.song_index = 0
-if "current_song" not in st.session_state:
-    st.session_state.current_song = {}
 
-# Mood & Artist Input
-with st.form("mood_form"):
-    user_input = st.text_area("Describe how you're feeling:", "")
-    artist_input = st.text_input("Optional: Favorite Artist or Band")
-    submit = st.form_submit_button("🎵 Get Songs")
+# Mood input
+mood_input = st.text_input("How are you feeling today?", placeholder="e.g. Happy, Sad, Energetic")
 
-if submit and user_input:
+def get_mood_category(text):
     try:
-        with st.spinner("Analyzing your mood..."):
-            response = groq_client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": "You are a music mood classifier."},
-                    {"role": "user", "content": f"Classify the mood from: {user_input}. Only return one-word mood like Happy, Sad, Chill, Energetic, Romantic, etc."}
-                ]
-            )
-            mood = response.choices[0].message.content.strip()
-            st.success(f"Mood detected: {mood}")
-
-        # Build query
-        query = f"{mood} songs"
-        if artist_input:
-            query += f" by {artist_input}"
-
-        with st.spinner(f"Searching JioSaavn for: {query}"):
-            search = requests.get(f"{JIOSAAVN_API_URL}/search/songs", params={"query": query})
-            data = search.json().get("data", {}).get("results", [])
-            if isinstance(data, list) and data:
-                st.session_state.song_list = data[:10]
-                st.session_state.song_index = 0
-                st.session_state.current_song = st.session_state.song_list[0]
-            else:
-                st.error("No songs found. Try a different mood or artist.")
+        response = groq_client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {"role": "system", "content": "Classify the user's mood into one of: Happy, Sad, Energetic, Romantic, Calm, Angry"},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.3,
+            max_tokens=20
+        )
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        st.error("❌ Failed to connect to Groq or JioSaavn API.")
-        st.exception(e)
+        st.error("Failed to connect to Groq API.")
+        return None
 
-# Music Player UI
+def fetch_songs_by_mood(mood):
+    try:
+        query = f"{mood} hits"
+        res = requests.get(f"{JIOSAAVN_API_URL}/search/songs", params={"query": query})
+        data = res.json().get("data", {}).get("results", [])
+        return data[:10]
+    except Exception as e:
+        st.error("Error fetching songs. Try again later.")
+        return []
+
 def show_song(song):
     st.subheader(song.get("name", "Unknown Title"))
     st.text(f"Album: {song.get('album', {}).get('name', 'Unknown')}")
-    st.image(song.get("image", "")[-1]["link"], width=300)
-    st.audio(song.get("downloadUrl", [{}])[0].get("link", ""), format="audio/mp3")
 
-    # Show lyrics
+    # Safe image display
+    image_list = song.get("image", [])
+    if isinstance(image_list, list) and len(image_list) > 0 and "link" in image_list[-1]:
+        st.image(image_list[-1]["link"], width=300)
+    else:
+        st.warning("No image available.")
+
+    # Safe audio playback
+    audio_list = song.get("downloadUrl", [])
+    if isinstance(audio_list, list) and len(audio_list) > 0 and "link" in audio_list[0]:
+        st.audio(audio_list[0]["link"], format="audio/mp3")
+    else:
+        st.error("Audio unavailable.")
+
+    # Lyrics
     try:
         lyrics_res = requests.get(f"{JIOSAAVN_API_URL}/songs/{song['id']}/lyrics")
         lyrics = lyrics_res.json().get("data", {}).get("lyrics", "")
@@ -77,18 +76,36 @@ def show_song(song):
             with st.expander("🎤 Lyrics"):
                 st.text(lyrics)
     except:
-        pass
+        st.info("Lyrics not available.")
 
-# Playback Controls
+# Mood detection and song loading
+if st.button("🎵 Get Songs"):
+    if mood_input.strip() == "":
+        st.warning("Please enter your mood.")
+    else:
+        mood = get_mood_category(mood_input)
+        if mood:
+            st.success(f"Detected mood: {mood}")
+            songs = fetch_songs_by_mood(mood)
+            if songs:
+                st.session_state.song_list = songs
+                st.session_state.current_index = 0
+            else:
+                st.error("No songs found.")
+
+# Navigation controls
 if st.session_state.song_list:
-    current = st.session_state.song_index
+    current = st.session_state.current_index
     show_song(st.session_state.song_list[current])
 
-    cols = st.columns(3)
-    if cols[0].button("⏮️ Previous", disabled=current == 0):
-        st.session_state.song_index = max(0, current - 1)
-        st.session_state.current_song = st.session_state.song_list[st.session_state.song_index]
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("⏮ Previous", disabled=(current == 0)):
+            st.session_state.current_index = max(0, current - 1)
+    with col2:
+        st.markdown("###")
+        st.markdown("▶️ Now Playing")
+    with col3:
+        if st.button("⏭ Next", disabled=(current >= len(st.session_state.song_list) - 1)):
+            st.session_state.current_index = min(len(st.session_state.song_list) - 1, current + 1)
 
-    if cols[2].button("⏭️ Next", disabled=current >= len(st.session_state.song_list) - 1):
-        st.session_state.song_index = min(len(st.session_state.song_list) - 1, current + 1)
-        st.session_state.current_song = st.session_state.song_list[st.session_state.song_index]
