@@ -61,13 +61,13 @@ if query:
     jio_songs = search_jiosaavn_song(query, selected_mood)
     if jio_songs:
         add_to_queue(jio_songs)  # Add to queue
-        for song in jio_songs:
+        for idx, song in enumerate(jio_songs):
             song_name = song.get('name', 'Unknown Song')
             artist = song.get('primaryArtists', 'Unknown Artist')
             st.write(f"**{song_name}** by {artist}")
             audio_link = song.get("downloadUrl", [])[-1].get("link", "")
             if audio_link:
-                st.button(f"Play {song_name}", on_click=play_audio, args=(audio_link,))
+                st.button(f"Play {song_name}", on_click=play_audio, args=(audio_link,), key=f"jiosaavn_button_{idx}")
             else:
                 st.write("Audio unavailable for this song.")
     else:
@@ -78,13 +78,13 @@ if query:
     itunes_songs = search_itunes_song(query, selected_mood)
     if itunes_songs:
         add_to_queue(itunes_songs)  # Add to queue
-        for song in itunes_songs:
+        for idx, song in enumerate(itunes_songs):
             song_name = song.get("trackName", "Unknown Song")
             artist = song.get("artistName", "Unknown Artist")
             preview_url = song.get("previewUrl", "")
             if preview_url:
                 st.write(f"**{song_name}** by {artist}")
-                st.button(f"Play {song_name}", on_click=play_audio, args=(preview_url,))
+                st.button(f"Play {song_name}", on_click=play_audio, args=(preview_url,), key=f"itunes_button_{idx}")
             else:
                 st.write("Preview unavailable for this song.")
     else:
