@@ -6,9 +6,15 @@ import os
 def fetch_songs(query):
     base_url = "https://saavn.dev/api"
     try:
+        # Search the song by query
         response = requests.get(f"{base_url}/search/songs", params={"query": query})
+        response.raise_for_status()  # Will raise an error for 4xx/5xx codes
         data = response.json()
-        return data['data']['results']  # List of song details
+        
+        if 'data' in data and 'results' in data['data']:
+            return data['data']['results']  # List of song details
+        else:
+            return []  # No results found
     except Exception as e:
         st.error(f"Error fetching songs: {e}")
         return []
@@ -57,8 +63,9 @@ if mood:
         if selected_song:
             song_data = fetch_songs(selected_song)
             if song_data:
-                show_song(song_data[0])  # Play the first song from the search results
+                # Show the first song from the fetched results
+                show_song(song_data[0])
             else:
-                st.error(f"Could not find the song {selected_song}.")
+                st.error(f"Could not find the song '{selected_song}'. Please try another song.")
     else:
         st.error("No songs found for the selected mood. Please try again later.")
