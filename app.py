@@ -27,7 +27,7 @@ mood_input = st.text_input("How are you feeling today?", placeholder="e.g. Happy
 def get_mood_category(text):
     try:
         response = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama3-8b-8192",  # Updated model
             messages=[
                 {"role": "system", "content": "Classify the user's mood into one of: Happy, Sad, Energetic, Romantic, Calm, Angry"},
                 {"role": "user", "content": text}
@@ -45,7 +45,7 @@ def fetch_songs_by_mood(mood):
         query = f"{mood} hits"
         res = requests.get(f"{JIOSAAVN_API_URL}/search/songs", params={"query": query})
         data = res.json().get("data", {}).get("results", [])
-        return data[:10]
+        return data[:15]  # Fetch 15 songs to provide more recommendations
     except Exception as e:
         st.error("Error fetching songs. Try again later.")
         return []
