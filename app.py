@@ -1,95 +1,85 @@
-import os
 import streamlit as st
 import requests
+import os
+from groq import Groq
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
-
-# Set up Groq API
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-def classify_mood(text):
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "llama3-8b-8192",
-        "messages": [
-            {"role": "system", "content": "You are a music assistant that classifies moods based on text."},
-            {"role": "user", "content": f"Classify the user's mood from this text: {text}. Reply with one of: happy, sad, romantic, energetic, calm."}
-        ]
-    }
+# Set up Groq client
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+# Streamlit UI
+st.title("🎵 Mood-Based Music Recommender")
+st.write("Tell us how you feel, and we'll find songs that match your mood!")
+
+# User input
+user_input = st.text_input("How are you feeling today?", "I'm feeling energetic and happy")
+
+# Function to detect mood using Groq
+def detect_mood(text):
     try:
-        res = requests.post(GROQ_API_URL, headers=headers, json=data)
-        res.raise_for_status()
-        mood = res.json()["choices"][0]["message"]["content"].strip().lower()
+        response = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that classifies the user's mood."},
+                {"role": "user", "content": f"Classify the mood of this text: '{text}'. Only return one keyword such as happy, sad, energetic, romantic, calm, etc."}
+            ],
+            model="llama3-8b-8192"
+        )
+        mood = response.choices[0].message.content.strip().lower()
         return mood
     except Exception as e:
-        st.error("Failed to connect to Groq API.")
-        st.exception(e)
+        st.error(f"Failed to detect mood: {e}")
         return None
 
-def search_songs_jiosaavn(query):
-    url = f"https://saavn.dev/api/search/songs?query={query}"
+# Function to fetch songs from JioSaavn
+def fetch_songs_by_mood(mood):
     try:
+        query = mood + " songs"
+        url = f"https://saavn.dev/api/search/songs?query={query}"
         response = requests.get(url)
-        response.raise_for_status()
-        return response.json().get("data", [])
+        if response.status_code == 200:
+            data = response.json()
+            songs = data.get("data", {}).get("results", [])
+            return songs
+        else:
+            st.warning(f"JioSaavn API request failed: {response.status_code}")
+            return []
     except Exception as e:
-        st.error("Error recommending songs.")
-        st.exception(e)
+        st.error(f"Failed to fetch songs: {e}")
         return []
 
+# Function to display song
 def show_song(song):
-    song_name = song.get("name") or song.get("song") or "Unknown Title"
-    album_data = song.get("album", {})
-    album_name = album_data.get("name", "Unknown Album")
-    image_list = song.get("image") or []
-    media_list = song.get("downloadUrl") or []
-
-    st.subheader(song_name)
-    st.caption(f"Album: {album_name}")
-
-    # Show image safely
-    image_url = ""
-    if isinstance(image_list, list) and image_list:
-        for img in reversed(image_list):
-            if img.get("link"):
-                image_url = img["link"]
-                break
-    if image_url:
-        try:
-            st.image(image_url, width=300)
-        except Exception:
-            st.warning("Image could not be loaded.")
+    st.subheader(song.get("name", "Unknown Title"))
+    image = song.get("image")
+    if image and isinstance(image, list):
+        st.image(image[-1].get("link", ""), width=300)
     else:
         st.warning("No image available.")
 
-    # Show audio player
-    audio_url = ""
-    if isinstance(media_list, list) and media_list:
-        for audio in reversed(media_list):
-            if audio.get("link"):
-                audio_url = audio["link"]
-                break
-    if audio_url:
-        st.audio(audio_url, format="audio/mp3")
+    preview_url = song.get("downloadUrl", [{}])[-1].get("link")
+    if preview_url:
+        st.audio(preview_url)
     else:
-        st.error(f"Audio unavailable for {song_name}. Please try another song.")
+        st.warning("Audio unavailable.")
 
-# UI
-st.title("🎵 Mood-Based Music Recommender")
-user_input = st.text_input("How are you feeling today?")
+    st.caption(f"Album: {song.get('album', {}).get('name', 'Unknown')}")
+    st.markdown(f"[Listen More]({song.get('url', '#')})")
 
+# Detect mood
 if user_input:
-    mood = classify_mood(user_input)
-    if mood:
-        st.success(f"Detected mood: {mood}")
-        song_results = search_songs_jiosaavn(mood)
+    user_mood = detect_mood(user_input)
+    if user_mood:
+        st.success(f"Detected mood: {user_mood}")
+
+        song_results = fetch_songs_by_mood(user_mood)
+
         if song_results:
             for song in song_results[:10]:
                 show_song(song)
+                st.markdown("---")
         else:
             st.warning("No songs found for the selected mood. Please try again later.")
