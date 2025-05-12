@@ -36,12 +36,14 @@ query = st.text_input("Enter a song, artist, or genre:")
 if "queue" not in st.session_state:
     st.session_state.queue = []  # Initialize the queue
 if "current_song_index" not in st.session_state:
-    st.session_state.current_song_index = 0  # Start at the first song
+    st.session_state.current_song_index = -1  # Start at the first song
+if "current_song" not in st.session_state:
+    st.session_state.current_song = None  # Track current song
 
 # Function to play audio
 def play_audio(audio_url):
     st.session_state.current_song = audio_url
-    st.audio(audio_url, format="audio/mp3")
+    st.audio(audio_url, format="audio/mp3", start_time=0)  # Start from the beginning
 
 # Function to add songs to the queue
 def add_to_queue(songs):
@@ -94,7 +96,10 @@ if query:
 
 # UI for the currently playing song
 if st.session_state.queue:
-    song = st.session_state.queue[st.session_state.current_song_index]
+    song = st.session_state.queue[st.session_state.current_song_index] if st.session_state.current_song_index >= 0 else None
+    if song and st.session_state.current_song != song:
+        play_audio(song)  # Play the song when the index changes or queue changes
+    
     st.subheader("🎶 Now Playing:")
     st.write(f"**{song}**")  # Add artist/album info here if available
     st.audio(song, format="audio/mp3")
@@ -106,6 +111,7 @@ if st.session_state.queue:
         if st.button("⏮ Previous", key="previous"):
             if st.session_state.current_song_index > 0:
                 st.session_state.current_song_index -= 1
+                st.session_state.current_song = None  # Clear current song to stop it
                 play_audio(st.session_state.queue[st.session_state.current_song_index])
     
     with col2:
@@ -117,6 +123,7 @@ if st.session_state.queue:
         if st.button("⏭ Next", key="next"):
             if st.session_state.current_song_index < len(st.session_state.queue) - 1:
                 st.session_state.current_song_index += 1
+                st.session_state.current_song = None  # Clear current song to stop it
                 play_audio(st.session_state.queue[st.session_state.current_song_index])
 
     # Display the queue
