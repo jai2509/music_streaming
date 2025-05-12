@@ -1,98 +1,57 @@
-import os
 import streamlit as st
 import requests
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
-# Groq API Key
-groq_api_key = os.getenv("GROQ_API_KEY")
-
-def detect_mood(text):
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {groq_api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "llama3-8b-8192",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant that categorizes moods."},
-            {"role": "user", "content": f"Based on this message, choose one mood from the following list: happy, sad, romantic, party, workout, chill, energetic, devotional, patriotic, relaxing. Message: {text}. Reply with only one mood from the list."}
-        ],
-        "temperature": 0.7
-    }
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        result = response.json()
-        return result['choices'][0]['message']['content'].strip().lower()
-    except Exception as e:
-        st.error(f"Error detecting mood: {e}")
-        return None
-
-def fetch_songs_by_mood(mood):
-    try:
-        url = f"https://saavn.dev/search/songs?query={mood}"
-        response = requests.get(url)
+# Function to search JioSaavn
+def search_jiosaavn_song(query):
+    url = f"https://saavn.dev/search/songs?query={query}"
+    response = requests.get(url)
+    if response.status_code == 200:
         data = response.json()
         return data.get("data", {}).get("results", [])
-    except Exception as e:
-        st.error(f"Error fetching songs: {e}")
-        return []
+    return []
 
-def show_song(song):
-    title = song.get("name", "Unknown Title")
-    album = song.get("album", {})
-    image = song.get("image", [])
-    url = song.get("url", "")
-    download_url = song.get("downloadUrl", [])
-
-    st.subheader(title)
-    st.markdown(f"**Album**: {album.get('name', 'N/A')}  ")
-    st.markdown(f"**URL**: [Listen on JioSaavn]({url})")
-
-    try:
-        if image:
-            st.image(image[-1].get("link", ""), width=300)
-        else:
-            st.warning("No image available.")
-    except Exception as e:
-        st.warning("Image display error.")
-
-    if download_url:
-        audio_url = download_url[-1].get("link", "")
-        if audio_url:
-            st.audio(audio_url)
-        else:
-            st.warning("Audio unavailable.")
-    else:
-        st.warning("Audio unavailable.")
+# Function to search iTunes
+def search_itunes_song(query):
+    url = f"https://itunes.apple.com/search?term={query}&media=music&limit=5"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("results", [])
+    return []
 
 # Streamlit UI
-st.title("🎵 Mood-Based Music Recommender")
-user_input = st.text_input("How are you feeling today?")
+st.title("🎵 Music Search App")
 
-if user_input:
-    mood = detect_mood(user_input)
-    if mood:
-        st.info(f"Detected Mood: {mood}")
-        song_results = fetch_songs_by_mood(mood)
+# User input for song or artist
+query = st.text_input("Enter a song or artist name:")
 
-        if song_results:
-            for song in song_results[:10]:
-                show_song(song)
-        else:
-            fallback_moods = {
-                "happy": ["Pharrell Williams - Happy", "Justin Timberlake - Can't Stop The Feeling"],
-                "sad": ["Fix You - Coldplay", "Someone Like You - Adele"],
-                "romantic": ["Perfect - Ed Sheeran", "Tum Hi Ho - Aashiqui 2"],
-                "party": ["Uptown Funk", "Taki Taki"],
-                "relaxing": ["Weightless - Marconi Union", "Let Her Go - Passenger"]
-            }
-            if mood in fallback_moods:
-                st.warning("No songs found for this mood. Showing fallback suggestions:")
-                for song_name in fallback_moods[mood]:
-                    st.markdown(f"🎶 {song_name}")
+if query:
+    # Search JioSaavn
+    st.subheader("🎶 JioSaavn Results:")
+    jio_songs = search_jiosaavn_song(query)
+    if jio_songs:
+        for song in jio_songs:
+            st.write(f"**{song['name']}** by {song['primaryArtists']}")
+            # Full audio link from JioSaavn
+            audio_link = song.get("downloadUrl", [])[-1].get("link", "")
+            if audio_link:
+                st.audio(audio_link)
             else:
-                st.warning("No songs found for the selected mood.")
+                st.write("Audio unavailable for this song.")
+    else:
+        st.write("No songs found on JioSaavn.")
+
+    # Search iTunes
+    st.subheader("🎧 iTunes Results:")
+    itunes_songs = search_itunes_song(query)
+    if itunes_songs:
+        for song in itunes_songs:
+            st.write(f"**{song['trackName']}** by {song['artistName']}")
+            # Audio Preview from iTunes (30 seconds)
+            preview_url = song.get("previewUrl", "")
+            if preview_url:
+                st.audio(preview_url)
+            else:
+                st.write("Preview unavailable for this song.")
+    else:
+        st.write("No songs found on iTunes.")
