@@ -38,13 +38,21 @@ if "current_song" not in st.session_state:
     st.session_state.current_song = None  # Track the current song being played
 
 # Function to play audio from the queue
-def play_audio(url):
-    st.session_state.current_song = url
-    st.audio(url, format="audio/mp3")
+def play_audio(audio_url):
+    st.session_state.current_song = audio_url
+    st.audio(audio_url, format="audio/mp3")
 
 # Function to update the queue
 def add_to_queue(songs):
-    st.session_state.queue.extend(songs)
+    for song in songs:
+        # For JioSaavn songs, get the correct audio link
+        if 'downloadUrl' in song and song['downloadUrl']:
+            audio_url = song['downloadUrl'][0].get('link', '')
+        else:
+            audio_url = ""
+        
+        if audio_url:
+            st.session_state.queue.append(audio_url)
 
 # Adding songs to the queue based on user query and mood
 if query:
@@ -54,10 +62,12 @@ if query:
     if jio_songs:
         add_to_queue(jio_songs)  # Add to queue
         for song in jio_songs:
-            st.write(f"**{song['name']}** by {song['primaryArtists']}")
+            song_name = song.get('name', 'Unknown Song')
+            artist = song.get('primaryArtists', 'Unknown Artist')
+            st.write(f"**{song_name}** by {artist}")
             audio_link = song.get("downloadUrl", [])[-1].get("link", "")
             if audio_link:
-                st.button(f"Add {song['name']} to Queue", on_click=play_audio, args=(audio_link,))
+                st.button(f"Play {song_name}", on_click=play_audio, args=(audio_link,))
             else:
                 st.write("Audio unavailable for this song.")
     else:
@@ -69,10 +79,12 @@ if query:
     if itunes_songs:
         add_to_queue(itunes_songs)  # Add to queue
         for song in itunes_songs:
-            st.write(f"**{song['trackName']}** by {song['artistName']}")
+            song_name = song.get("trackName", "Unknown Song")
+            artist = song.get("artistName", "Unknown Artist")
             preview_url = song.get("previewUrl", "")
             if preview_url:
-                st.button(f"Add {song['trackName']} to Queue", on_click=play_audio, args=(preview_url,))
+                st.write(f"**{song_name}** by {artist}")
+                st.button(f"Play {song_name}", on_click=play_audio, args=(preview_url,))
             else:
                 st.write("Preview unavailable for this song.")
     else:
@@ -87,13 +99,17 @@ if st.session_state.queue:
     
     st.subheader("🎵 Queue:")
     for idx, song in enumerate(st.session_state.queue):
-        st.write(f"{idx + 1}. {song['name'] if 'name' in song else song['trackName']}")
+        st.write(f"{idx + 1}. {song}")
 
 # Auto play functionality (if the current song finishes, play the next in queue)
 def auto_play():
     if st.session_state.queue:
-        next_song = st.session_state.queue.pop(0)
-        st.session_state.queue.append(next_song)  # Loop song at the end of the queue
-        play_audio(next_song)
+        if st.session_state.current_song is not None:
+            # Remove current song from the queue and get next song
+            st.session_state.queue.pop(0)  # Remove first song
+            if st.session_state.queue:
+                next_song = st.session_state.queue[0]  # Get the next song in the queue
+                st.session_state.current_song = next_song
+                play_audio(next_song)
 
 auto_play()  # Automatically play next song in queue after the current one finishes
