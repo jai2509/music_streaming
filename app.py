@@ -51,32 +51,38 @@ def fetch_songs_by_mood(mood):
         return []
 
 def show_song(song):
-    st.subheader(song.get("name", "Unknown Title"))
-    st.text(f"Album: {song.get('album', {}).get('name', 'Unknown')}")
+    # Display song name
+    song_name = song.get("name", "Unknown Title")
+    album_name = song.get("album", {}).get("name", "Unknown Album")
+    st.subheader(song_name)
+    st.text(f"Album: {album_name}")
 
     # Safe image display
     image_list = song.get("image", [])
     if isinstance(image_list, list) and len(image_list) > 0 and "link" in image_list[-1]:
         st.image(image_list[-1]["link"], width=300)
     else:
-        st.warning("No image available.")
+        st.warning(f"No image available for {song_name}.")
 
     # Safe audio playback
     audio_list = song.get("downloadUrl", [])
     if isinstance(audio_list, list) and len(audio_list) > 0 and "link" in audio_list[0]:
         st.audio(audio_list[0]["link"], format="audio/mp3")
     else:
-        st.error("Audio unavailable.")
+        st.error(f"Audio unavailable for {song_name}.")
 
-    # Lyrics
+    # Attempt to fetch and display lyrics
     try:
         lyrics_res = requests.get(f"{JIOSAAVN_API_URL}/songs/{song['id']}/lyrics")
         lyrics = lyrics_res.json().get("data", {}).get("lyrics", "")
         if lyrics:
             with st.expander("🎤 Lyrics"):
                 st.text(lyrics)
-    except:
-        st.info("Lyrics not available.")
+        else:
+            st.info(f"Lyrics not available for {song_name}.")
+    except Exception as e:
+        st.warning(f"Could not fetch lyrics for {song_name}.")
+        st.info(f"Error: {str(e)}")
 
 # Mood detection and song loading
 if st.button("🎵 Get Songs"):
@@ -108,4 +114,3 @@ if st.session_state.song_list:
     with col3:
         if st.button("⏭ Next", disabled=(current >= len(st.session_state.song_list) - 1)):
             st.session_state.current_index = min(len(st.session_state.song_list) - 1, current + 1)
-
