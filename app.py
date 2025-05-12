@@ -28,27 +28,15 @@ def show_song(song):
     else:
         st.error(f"Audio unavailable for {song_name}. Please try another song.")
 
-# Function to recommend songs based on mood
+# Function to recommend songs based on mood (Mockup)
 def recommend_songs(mood):
-    # Make a request to Groq API for mood-based recommendations (replace with Groq API)
-    groq_url = "https://api.groq.com/v1/completions"
-    headers = {
-        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}",
+    mood_song_mapping = {
+        "Happy": ["Happy by Pharrell Williams", "Can't Stop the Feeling! by Justin Timberlake", "Uptown Funk by Mark Ronson"],
+        "Sad": ["Someone Like You by Adele", "Fix You by Coldplay", "The Night We Met by Lord Huron"],
+        "Energetic": ["Stronger by Kanye West", "Lose Yourself by Eminem", "Till I Collapse by Eminem"],
+        "Relaxed": ["Weightless by Marconi Union", "Sunset Lover by Petit Biscuit", "Night Owl by Galimatias"]
     }
-    data = {
-        "model": "text-davinci-003",  # Example model; replace with the latest model from Groq
-        "prompt": f"Recommend 10 songs for a {mood} mood.",
-        "max_tokens": 200
-    }
-    try:
-        response = requests.post(groq_url, headers=headers, json=data)
-        response.raise_for_status()
-        recommended_songs = response.json().get("choices", [])
-        song_list = [song['text'] for song in recommended_songs]
-        return song_list
-    except Exception as e:
-        st.error(f"Error recommending songs: {e}")
-        return []
+    return mood_song_mapping.get(mood, [])
 
 # Streamlit UI
 st.title("Mood-based Music Streaming Platform")
