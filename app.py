@@ -5,9 +5,13 @@ import os
 # Function to fetch songs from JioSaavn API (Unofficial)
 def fetch_songs(query):
     base_url = "https://saavn.dev/api"
-    response = requests.get(f"{base_url}/search/songs", params={"query": query})
-    data = response.json()
-    return data['data']['results']  # List of song details
+    try:
+        response = requests.get(f"{base_url}/search/songs", params={"query": query})
+        data = response.json()
+        return data['data']['results']  # List of song details
+    except Exception as e:
+        st.error(f"Error fetching songs: {e}")
+        return []
 
 # Function to show song details and audio player
 def show_song(song):
@@ -33,13 +37,18 @@ def recommend_songs(mood):
     }
     data = {
         "model": "text-davinci-003",  # Example model; replace with the latest model from Groq
-        "prompt": f"Recommend songs for a {mood} mood.",
-        "max_tokens": 100
+        "prompt": f"Recommend 10 songs for a {mood} mood.",
+        "max_tokens": 200
     }
-    response = requests.post(groq_url, headers=headers, json=data)
-    recommended_songs = response.json().get("choices", [])
-    song_list = [song['text'] for song in recommended_songs]  # Assuming the response contains song names
-    return song_list
+    try:
+        response = requests.post(groq_url, headers=headers, json=data)
+        response.raise_for_status()
+        recommended_songs = response.json().get("choices", [])
+        song_list = [song['text'] for song in recommended_songs]
+        return song_list
+    except Exception as e:
+        st.error(f"Error recommending songs: {e}")
+        return []
 
 # Streamlit UI
 st.title("Mood-based Music Streaming Platform")
@@ -53,15 +62,15 @@ if mood:
     if song_list:
         for song_name in song_list[:10]:  # Display up to 10 songs
             st.write(f"- {song_name}")
+        
+        # Play a song from the recommended list
+        selected_song = st.selectbox("Choose a song to play", song_list)
+        
+        if selected_song:
+            song_data = fetch_songs(selected_song)
+            if song_data:
+                show_song(song_data[0])  # Play the first song from the search results
+            else:
+                st.error(f"Could not find the song {selected_song}.")
     else:
         st.error("No songs found for the selected mood. Please try again later.")
-    
-    # Play a song from the recommended list
-    selected_song = st.selectbox("Choose a song to play", song_list)
-    
-    if selected_song:
-        song_data = fetch_songs(selected_song)
-        if song_data:
-            show_song(song_data[0])  # Play the first song from the search results
-        else:
-            st.error(f"Could not find the song {selected_song}.")
