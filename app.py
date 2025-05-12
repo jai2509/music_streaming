@@ -40,12 +40,12 @@ if query:
     st.subheader("🎶 JioSaavn Results:")
     jio_songs = search_jiosaavn_song(query)
     if jio_songs:
-        for song in jio_songs:
+        for idx, song in enumerate(jio_songs):
             st.write(f"**{song['name']}** by {song['primaryArtists']}")
             # Full audio link from JioSaavn
             audio_link = song.get("downloadUrl", [])[-1].get("link", "")
             if audio_link:
-                if st.button(f"Play {song['name']} from JioSaavn"):
+                if st.button(f"Play {song['name']} from JioSaavn", key=f"jiosaavn_{idx}"):
                     play_audio(audio_link)
             else:
                 st.write("Audio unavailable for this song.")
@@ -56,12 +56,12 @@ if query:
     st.subheader("🎧 iTunes Results:")
     itunes_songs = search_itunes_song(query)
     if itunes_songs:
-        for song in itunes_songs:
+        for idx, song in enumerate(itunes_songs):
             st.write(f"**{song['trackName']}** by {song['artistName']}")
             # Audio Preview from iTunes (30 seconds)
             preview_url = song.get("previewUrl", "")
             if preview_url:
-                if st.button(f"Play Preview of {song['trackName']} from iTunes"):
+                if st.button(f"Play Preview of {song['trackName']} from iTunes", key=f"itunes_{idx}"):
                     play_audio(preview_url)
             else:
                 st.write("Preview unavailable for this song.")
